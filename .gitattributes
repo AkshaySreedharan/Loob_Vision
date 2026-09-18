@@ -1,0 +1,1 @@
+models/efficientnet_b3_optimized.keras filter=lfs diff=lfs merge=lfs -text

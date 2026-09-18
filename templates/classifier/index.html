@@ -1,0 +1,265 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUBVISION | AI-Powered Lubricant Condition Analysis</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen" class="splash-overlay">
+        <div class="splash-content">
+            <div class="splash-logo">
+                <div class="glow-ring"></div>
+                <svg class="splash-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                    <circle cx="12" cy="14" r="3" fill="currentColor"/>
+                </svg>
+            </div>
+            <h1 class="splash-title">LUBVISION</h1>
+            <p class="splash-subtitle">AI-Powered Lubricant Condition Analysis</p>
+            <div class="splash-loader">
+                <div class="loader-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Shell -->
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                </svg>
+                <div class="brand-text">
+                    <h1 class="brand-title">LUBVISION</h1>
+                    <span class="brand-tagline">AI-Powered Lubricant Condition Analysis</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="btn-mobile-scan" class="icon-btn-navbar" title="Mobile Scan" aria-label="Mobile Scan">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="7" y="2" width="10" height="20" rx="2" ry="2"/>
+                        <path d="M10 6h4"/>
+                        <path d="M10 10h4"/>
+                        <circle cx="12" cy="17" r="0.8" fill="currentColor"/>
+                    </svg>
+                </button>
+                <div class="system-status">
+                    <span class="status-indicator active"></span>
+                    <span class="status-label">Model Ready</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            
+            <!-- Analysis Section -->
+            <section class="viewport-section">
+                
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="title-icon">📷</span> <span id="view-title-text">LIVE CAMERA PREVIEW</span>
+                    </h2>
+                </div>
+
+                <!-- Camera / Preview Box -->
+                <div id="preview-container" class="preview-container">
+                    
+                    <!-- Live Video Stream -->
+                    <video id="camera-video" autoplay playsinline muted class="camera-stream"></video>
+                    
+                    <!-- Captured / File Image Preview -->
+                    <img id="image-preview" class="image-preview hidden" alt="Captured Lubricant Image">
+
+                    <!-- Off-Screen Canvas for Frame Capture -->
+                    <canvas id="capture-canvas" class="hidden"></canvas>
+
+                    <!-- Camera Overlay HUD -->
+                    <div id="camera-hud" class="camera-hud">
+                        <div class="hud-corners">
+                            <span class="corner tl"></span>
+                            <span class="corner tr"></span>
+                            <span class="corner bl"></span>
+                            <span class="corner br"></span>
+                        </div>
+                        <div class="hud-reticle"></div>
+                    </div>
+
+                    <!-- Camera Error Overlay -->
+                    <div id="camera-error" class="camera-error-overlay hidden">
+                        <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                        <p id="camera-error-text" class="error-msg">Camera is currently unavailable.</p>
+                        <p class="error-hint">You can use the simple upload button below to select an image from your device.</p>
+                    </div>
+
+                    <!-- Processing Spinner Overlay -->
+                    <div id="processing-overlay" class="processing-overlay hidden">
+                        <div class="spinner"></div>
+                        <span class="processing-text">Analyzing Lubricant Sample...</span>
+                    </div>
+
+                </div>
+
+                <!-- Live Camera Controls Bar -->
+                <div id="live-controls" class="controls-bar">
+                    <button id="btn-capture" class="btn btn-primary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                        </svg>
+                        CAPTURE
+                    </button>
+
+                    <!-- Secondary Simple File Upload Button -->
+                    <label for="file-input" id="btn-upload-label" class="btn btn-secondary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Upload Image
+                    </label>
+                    <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp" class="hidden">
+                </div>
+
+                <!-- Captured Preview Controls Bar (Shown after frame capture) -->
+                <div id="capture-controls" class="controls-bar hidden">
+                    <button id="btn-retake" class="btn btn-secondary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="1 4 1 10 7 10"/>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                        </svg>
+                        RETAKE
+                    </button>
+
+                    <button id="btn-analyze" class="btn btn-primary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                        ANALYZE IMAGE
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- Results Display Section -->
+            <section id="results-section" class="results-section hidden">
+                <div class="results-card">
+                    <div class="card-header">
+                        <span class="card-tag">ANALYSIS RESULT</span>
+                    </div>
+                    
+                    <div class="condition-badge-container">
+                        <div id="condition-badge" class="condition-badge">
+                            <span id="condition-name" class="condition-text">Condition</span>
+                        </div>
+                    </div>
+
+                    <div class="confidence-display">
+                        <span class="confidence-label">Confidence:</span>
+                        <span id="confidence-value" class="confidence-percentage">0.0%</span>
+                    </div>
+
+                    <!-- Visual Degradation Score Bar -->
+                    <div class="degradation-container">
+                        <div class="degradation-header">
+                            <span class="degradation-title">Degradation Score</span>
+                            <span class="degradation-score-value"><strong id="degradation-score-num">0.0</strong> / 100</span>
+                        </div>
+                        
+                        <div class="degradation-bar-track">
+                            <div id="degradation-bar-fill" class="degradation-bar-fill" style="width: 0%;"></div>
+                        </div>
+                        
+                        <div class="degradation-footer">
+                            <span id="degradation-level-text" class="degradation-level">Low Degradation</span>
+                            <span class="degradation-subtitle">Model-derived degradation index</span>
+                        </div>
+                    </div>
+
+                    <div class="results-actions">
+                        <button id="btn-reset" class="btn btn-reset">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                            NEW ANALYSIS
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>LUBVISION Industrial AI • Powered by EfficientNet-B3</p>
+        </footer>
+
+    </div>
+
+    <!-- Mobile Scan QR Code Modal -->
+    <div id="qr-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
+        <div class="modal-card">
+            <button id="btn-qr-close" class="modal-close-btn" aria-label="Close modal">&times;</button>
+            <div class="modal-header">
+                <div class="modal-icon-badge">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="7" y="2" width="10" height="20" rx="2"/>
+                        <path d="M10 6h4"/>
+                        <path d="M10 10h4"/>
+                        <circle cx="12" cy="17" r="0.8" fill="currentColor"/>
+                    </svg>
+                </div>
+                <h2 id="qr-modal-title" class="modal-title">Mobile Sample Scan</h2>
+                <p class="modal-subtitle">Scan this QR code with your mobile phone camera to open LUBVISION on your phone.</p>
+            </div>
+            
+            <div class="qr-container">
+                <div id="qr-code-box" class="qr-code-box">
+                    <span class="qr-loading-text">Generating QR code...</span>
+                </div>
+            </div>
+
+            <div class="qr-url-box">
+                <input type="text" id="qr-url-input" class="qr-url-input" readonly>
+                <button id="btn-copy-url" class="btn btn-secondary btn-sm" title="Copy URL">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy Link
+                </button>
+            </div>
+            
+            <p class="qr-hint">Ensure your mobile device is connected to the same network as the server.</p>
+        </div>
+    </div>
+
+    <!-- Application JavaScripts -->
+    <script>
+        const CSRF_TOKEN = "{{ csrf_token }}";
+        const SERVER_MOBILE_UPLOAD_URL = "{{ mobile_upload_url|escapejs }}";
+    </script>
+    <script src="{% static 'js/camera.js' %}"></script>
+    <script src="{% static 'js/qrcode.min.js' %}"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

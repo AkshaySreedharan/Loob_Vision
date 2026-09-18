@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LUBVISION | Mobile Sample Scan</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+    <!-- Application Shell -->
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                </svg>
+                <div class="brand-text">
+                    <h1 class="brand-title">LUBVISION</h1>
+                    <span class="brand-tagline">Mobile Camera Capture</span>
+                </div>
+            </div>
+            <div class="system-status">
+                <span class="status-indicator active"></span>
+                <span class="status-label">Camera Ready</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            
+            <section class="viewport-section">
+                
+                <div class="section-header">
+                    <h2 class="section-title">
+                        <span class="title-icon">📷</span> <span id="mobile-title-text">TAKE LUBRICANT PHOTO</span>
+                    </h2>
+                </div>
+
+                <!-- Camera / Preview Box -->
+                <div id="mobile-preview-container" class="preview-container">
+                    
+                    <!-- Live Rear Video Stream -->
+                    <video id="mobile-video" autoplay playsinline muted class="camera-stream"></video>
+                    
+                    <!-- Captured Image Preview -->
+                    <img id="mobile-image-preview" class="image-preview hidden" alt="Captured Lubricant Sample">
+
+                    <!-- Canvas for Capture -->
+                    <canvas id="mobile-canvas" class="hidden"></canvas>
+
+                    <!-- Camera Reticle HUD -->
+                    <div id="mobile-hud" class="camera-hud">
+                        <div class="hud-corners">
+                            <span class="corner tl"></span>
+                            <span class="corner tr"></span>
+                            <span class="corner bl"></span>
+                            <span class="corner br"></span>
+                        </div>
+                        <div class="hud-reticle"></div>
+                    </div>
+
+                    <!-- Processing Overlay -->
+                    <div id="mobile-processing-overlay" class="processing-overlay hidden">
+                        <div class="spinner"></div>
+                        <span class="processing-text">Analyzing Sample...</span>
+                    </div>
+
+                </div>
+
+                <!-- Controls: Live Camera Mode -->
+                <div id="mobile-live-controls" class="controls-bar">
+                    <button id="btn-mobile-take-photo" class="btn btn-primary btn-lg" style="width: 100%; padding: 16px;">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                        </svg>
+                        TAKE PHOTO
+                    </button>
+                </div>
+
+                <!-- Controls: Captured Photo Mode -->
+                <div id="mobile-capture-controls" class="controls-bar hidden">
+                    <button id="btn-mobile-retake" class="btn btn-secondary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="1 4 1 10 7 10"/>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                        </svg>
+                        RETAKE
+                    </button>
+
+                    <button id="btn-mobile-analyze" class="btn btn-primary">
+                        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                        ANALYZE
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- Results Section -->
+            <section id="mobile-results-section" class="results-section hidden">
+                <div class="results-card">
+                    <div class="card-header">
+                        <span class="card-tag">ANALYSIS RESULT</span>
+                    </div>
+                    
+                    <div class="condition-badge-container">
+                        <div id="mobile-condition-badge" class="condition-badge">
+                            <span id="mobile-condition-name" class="condition-text">Condition</span>
+                        </div>
+                    </div>
+
+                    <div class="confidence-display">
+                        <span class="confidence-label">Confidence:</span>
+                        <span id="mobile-confidence-value" class="confidence-percentage">0.0%</span>
+                    </div>
+
+                    <!-- Visual Degradation Score Bar -->
+                    <div class="degradation-container">
+                        <div class="degradation-header">
+                            <span class="degradation-title">Degradation Score</span>
+                            <span class="degradation-score-value"><strong id="mobile-degradation-score-num">0.0</strong> / 100</span>
+                        </div>
+                        
+                        <div class="degradation-bar-track">
+                            <div id="mobile-degradation-bar-fill" class="degradation-bar-fill" style="width: 0%;"></div>
+                        </div>
+                        
+                        <div class="degradation-footer">
+                            <span id="mobile-degradation-level-text" class="degradation-level">Low Degradation</span>
+                            <span class="degradation-subtitle">Model-derived degradation index</span>
+                        </div>
+                    </div>
+
+                    <div class="results-actions">
+                        <button id="btn-mobile-reset" class="btn btn-reset">
+                            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                            NEW SAMPLE
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>LUBVISION Industrial AI • Mobile Camera Mode</p>
+        </footer>
+
+    </div>
+
+    <!-- Application JavaScripts -->
+    <script>
+        const CSRF_TOKEN = "{{ csrf_token }}";
+    </script>
+    <script src="{% static 'js/camera.js' %}"></script>
+    <script src="{% static 'js/mobile.js' %}"></script>
+</body>
+</html>
