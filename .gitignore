@@ -31,12 +31,29 @@ staticfiles/
 
 # Environments
 .env
+.env.*
 .venv
 venv/
 ENV/
+myenv/
 
 # IDE / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Dataset & Training Artifacts (Excluded from Vercel deployment)
+dataset/
+data/
+*.keras
+*.h5
+training_history.json
+test_predictions.csv
+*.png
+*.jpg
+*.jpeg
+
+# Ensure production ONNX model is tracked by Git / deployment
+!models/efficientnet_b3_optimized.onnx
+!models/class_names.json

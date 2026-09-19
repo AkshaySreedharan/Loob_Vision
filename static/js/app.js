@@ -1,6 +1,7 @@
 /**
  * LUBVISION Main Application Script
- * Implements CAPTURE -> PREVIEW -> ANALYZE workflow.
+ * Implements CAMERA FIRST -> CAPTURE / UPLOAD -> PREVIEW -> ANALYZE workflow.
+ * Integrates with Django ONNX Predictor API (/api/predict/).
  */
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -27,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAnalyze = document.getElementById('btn-analyze');
     const fileInput = document.getElementById('file-input');
     
-    // Results DOM
+    // Results DOM Elements
     const resultsSection = document.getElementById('results-section');
     const conditionBadge = document.getElementById('condition-badge');
     const conditionName = document.getElementById('condition-name');
@@ -38,16 +39,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentCameraActive = false;
     let capturedBlob = null;
     let currentPreviewUrl = null;
+    let currentFilename = "lubricant_sample.jpg";
 
-    // 1. Splash Screen Handler
+    // 1. Splash Screen Dismissal
     setTimeout(() => {
         if (splashScreen) {
             splashScreen.classList.add('fade-out');
         }
-    }, 1800);
+    }, 1200);
 
-    // 2. Initialize Camera Stream
+    // 2. Camera Initialization (Automatic first camera selection)
     async function initCamera() {
+        if (!cameraVideo) return;
+
         cameraError.classList.add('hidden');
         cameraHud.classList.remove('hidden');
 
@@ -56,18 +60,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         currentCameraActive = success;
+        if (success) {
+            cameraVideo.classList.remove('hidden');
+        }
     }
 
     function showCameraError(message) {
         currentCameraActive = false;
         cameraHud.classList.add('hidden');
-        cameraErrorText.textContent = message;
+        if (cameraVideo) cameraVideo.classList.add('hidden');
+        cameraErrorText.textContent = message || "Camera is currently unavailable.";
         cameraError.classList.remove('hidden');
     }
 
+    // Auto-start camera when page loads
     initCamera();
 
-    // 3. CAPTURE Handler (Freezes frame, shows preview, DOES NOT call API)
+    // 3. CAPTURE Button Handler (Freezes camera frame, shows preview, waits for ANALYZE)
     btnCapture.addEventListener('click', async () => {
         if (!currentCameraActive) {
             alert("Camera is not active. Please use the 'Upload Image' button to select an image from your device.");
@@ -76,76 +85,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const blob = await window.cameraController.captureBlob(captureCanvas);
         if (!blob) {
-            alert("Failed to capture camera frame. Please try again.");
+            alert("Failed to capture frame from camera. Please try again.");
             return;
         }
 
         capturedBlob = blob;
+        currentFilename = "captured_lubricant_sample.jpg";
 
-        // Revoke previous object URL if any
-        if (currentPreviewUrl) {
-            URL.revokeObjectURL(currentPreviewUrl);
-        }
-        currentPreviewUrl = URL.createObjectURL(capturedBlob);
-
-        // Display Captured Frame Preview
-        imagePreview.src = currentPreviewUrl;
-        imagePreview.classList.remove('hidden');
-        cameraVideo.classList.add('hidden');
-        cameraHud.classList.add('hidden');
-        if (previewContainer) previewContainer.classList.add('captured-mode');
-
-        // Update UI Title and Control Buttons
-        viewTitleText.textContent = "CAPTURE PREVIEW";
-        liveControls.classList.add('hidden');
-        captureControls.classList.remove('hidden');
-        resultsSection.classList.add('hidden');
+        showImagePreview(capturedBlob, "CAPTURE PREVIEW");
     });
 
-    // 4. RETAKE Handler (Discards frame, returns to live camera, DOES NOT call API)
-    btnRetake.addEventListener('click', () => {
-        resetToLiveCamera();
-    });
-
-    // 5. ANALYZE IMAGE Handler (Sends captured image to Django prediction API)
-    btnAnalyze.addEventListener('click', async () => {
-        if (!capturedBlob) {
-            alert("No captured image available for analysis.");
-            return;
-        }
-
-        await sendImageForPrediction(capturedBlob, "captured_lubricant_sample.jpg");
-    });
-
-    // 6. Simple Upload Button Handler (Direct File Upload Analysis)
-    fileInput.addEventListener('change', async (e) => {
+    // 4. Secondary Upload Button Handler (File Picker -> Preview -> Waits for ANALYZE)
+    fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         capturedBlob = file;
+        currentFilename = file.name || "uploaded_sample.jpg";
 
+        showImagePreview(capturedBlob, "UPLOADED IMAGE PREVIEW");
+        
+        // Reset file input value so re-selecting the same file fires change event
+        fileInput.value = '';
+    });
+
+    // Helper: Show captured/uploaded image preview in container
+    function showImagePreview(blobOrFile, titleText) {
         if (currentPreviewUrl) {
             URL.revokeObjectURL(currentPreviewUrl);
         }
-        currentPreviewUrl = URL.createObjectURL(file);
+        currentPreviewUrl = URL.createObjectURL(blobOrFile);
 
-        // Display preview image
         imagePreview.src = currentPreviewUrl;
         imagePreview.classList.remove('hidden');
         cameraVideo.classList.add('hidden');
         cameraHud.classList.add('hidden');
         if (previewContainer) previewContainer.classList.add('captured-mode');
 
-        viewTitleText.textContent = "UPLOADED IMAGE PREVIEW";
+        viewTitleText.textContent = titleText;
         liveControls.classList.add('hidden');
         captureControls.classList.remove('hidden');
         resultsSection.classList.add('hidden');
+    }
 
-        // Automatically analyze uploaded file directly
-        await sendImageForPrediction(file, file.name);
+    // 5. RETAKE Button Handler (Discards current preview, returns to live camera)
+    btnRetake.addEventListener('click', () => {
+        resetToLiveCamera();
+    });
 
-        // Clear file input so re-selecting same file fires change event
-        fileInput.value = '';
+    // 6. ANALYZE IMAGE Button Handler (Sends preview image to Django prediction API)
+    btnAnalyze.addEventListener('click', async () => {
+        if (!capturedBlob) {
+            alert("No captured or uploaded image available for analysis.");
+            return;
+        }
+
+        await sendImageForPrediction(capturedBlob, currentFilename);
     });
 
     // 7. Prediction API Communication
@@ -170,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 renderResult(data.condition, data.confidence, data.degradation_score);
             } else {
-                alert(`Analysis Error: ${data.error || 'Failed to process image.'}`);
+                alert(`Analysis Error: ${data.error || 'Failed to analyze sample.'}`);
             }
 
         } catch (err) {
@@ -187,17 +182,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 8. Render Prediction Result
+    // 8. Render Prediction Result & Degradation Score Bar
     function renderResult(condition, confidence, degradationScore) {
-        // Unhide results section so DOM elements are computed in layout
         resultsSection.classList.remove('hidden');
 
-        conditionName.textContent = condition;
-        confidenceValue.textContent = `${confidence.toFixed(1)}%`;
+        conditionName.textContent = condition || "Unknown";
+        confidenceValue.textContent = `${Number(confidence || 0).toFixed(1)}%`;
 
         // Style status badge
         conditionBadge.className = 'condition-badge';
-        const condLower = condition.toLowerCase();
+        const condLower = String(condition || '').toLowerCase();
         if (condLower.includes('fresh')) {
             conditionBadge.classList.add('fresh');
         } else if (condLower.includes('semi')) {
@@ -206,20 +200,19 @@ document.addEventListener('DOMContentLoaded', () => {
             conditionBadge.classList.add('fully');
         }
 
-        // Extract and clamp degradation score
-        const score = Math.max(0, Math.min(100, Number(degradationScore)));
+        // Clamp degradation score to range [0.0, 100.0]
+        const score = Math.max(0.0, Math.min(100.0, Number(degradationScore || 0.0)));
 
-        // Update score text (e.g. 63.5 / 100)
+        // Update score display text
         const degradationScoreNum = document.getElementById('degradation-score-num');
         if (degradationScoreNum) {
             degradationScoreNum.textContent = score.toFixed(1);
         }
 
-        // Update progress bar width and level styling
+        // Update visual progress bar width & level indicator
         const fill = document.getElementById('degradation-bar-fill');
         if (fill) {
             fill.style.width = `${score}%`;
-
             fill.className = 'degradation-bar-fill';
             if (score <= 33.0) {
                 fill.classList.add('level-low');
@@ -230,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Update interpretation text
+        // Update interpretation level text
         const degradationLevelText = document.getElementById('degradation-level-text');
         if (degradationLevelText) {
             degradationLevelText.className = 'degradation-level';
@@ -246,33 +239,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        if (window.innerWidth <= 768) {
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
-    // 9. Reset / New Analysis Handler
+    // 9. NEW ANALYSIS Handler
     btnReset.addEventListener('click', () => {
         resetToLiveCamera();
     });
 
     function resetToLiveCamera() {
-        // Discard captured blob and preview URL
         capturedBlob = null;
         if (currentPreviewUrl) {
             URL.revokeObjectURL(currentPreviewUrl);
             currentPreviewUrl = null;
         }
 
-        // Hide preview and results
         imagePreview.classList.add('hidden');
         resultsSection.classList.add('hidden');
         if (previewContainer) previewContainer.classList.remove('captured-mode');
 
-        // Restore UI Title and Live Camera Controls
+        // Reset degradation score bar and numbers
+        const fill = document.getElementById('degradation-bar-fill');
+        if (fill) fill.style.width = "0%";
+        const degradationScoreNum = document.getElementById('degradation-score-num');
+        if (degradationScoreNum) degradationScoreNum.textContent = "0.0";
+        const degradationLevelText = document.getElementById('degradation-level-text');
+        if (degradationLevelText) {
+            degradationLevelText.textContent = "Low Degradation";
+            degradationLevelText.className = "degradation-level low";
+        }
+
         viewTitleText.textContent = "LIVE CAMERA PREVIEW";
         captureControls.classList.add('hidden');
         liveControls.classList.remove('hidden');
 
-        // Restore Camera Video Stream
         if (currentCameraActive) {
             cameraVideo.classList.remove('hidden');
             cameraHud.classList.remove('hidden');
@@ -281,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 10. Mobile Scan QR Modal Handler
+    // 10. Mobile QR Code Modal Handler
     const qrModal = document.getElementById('qr-modal');
     const btnQrClose = document.getElementById('btn-qr-close');
     const qrCodeBox = document.getElementById('qr-code-box');
@@ -303,120 +305,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (qrModal) {
         qrModal.addEventListener('click', (e) => {
-            if (e.target === qrModal) {
-                closeQrModal();
-            }
+            if (e.target === qrModal) closeQrModal();
         });
     }
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && qrModal && !qrModal.classList.contains('hidden')) {
-            closeQrModal();
-        }
-    });
-
-    /**
-     * Mobile QR Code Configuration:
-     * - LOCAL DEVELOPMENT: Configure MOBILE_BASE_URL=http://<PC-LAN-IP>:8000 in your environment.
-     *   Ensure both your host PC and mobile phone are connected to the SAME Wi-Fi network.
-     * - PRODUCTION / Vercel: Configure MOBILE_BASE_URL=https://<production-domain>.
-     * - Encodes: MOBILE_BASE_URL + "/mobile-upload/"
-     */
     async function openQrModal() {
         if (!qrModal) return;
-
-        // Resolve mobile upload URL
-        let mobileUrl = '';
-        const clientOrigin = window.location.origin.replace(/\/+$/, '');
-        const isLoopback = ['127.0.0.1', 'localhost', '0.0.0.0'].includes(window.location.hostname.toLowerCase());
-
-        if (isLoopback && typeof SERVER_MOBILE_UPLOAD_URL !== 'undefined' && SERVER_MOBILE_UPLOAD_URL) {
-            mobileUrl = SERVER_MOBILE_UPLOAD_URL;
-        } else {
-            mobileUrl = clientOrigin + "/mobile-upload/";
-        }
-
-        // Prevent loopback IP/localhost from being encoded if server LAN URL is available
-        if (isLoopback && (mobileUrl.includes('127.0.0.1') || mobileUrl.includes('localhost'))) {
-            try {
-                const res = await fetch('/api/mobile-url/');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.mobile_url) {
-                        mobileUrl = data.mobile_url;
-                    }
-                }
-            } catch (e) {
-                console.warn('[LUBVISION QR] Could not fetch server LAN URL via API:', e);
-            }
-        }
-
-        // Log exact URL encoded in QR code
-        console.log('[LUBVISION QR] Encoding mobile URL into QR code:', mobileUrl);
-        
-        if (qrUrlInput) {
-            qrUrlInput.value = mobileUrl;
-        }
-
         qrModal.classList.remove('hidden');
 
-        // Clear and regenerate QR code every time modal opens
-        if (qrCodeBox) {
-            qrCodeBox.innerHTML = '';
+        try {
+            const resp = await fetch('/api/mobile-url/');
+            const data = await resp.json();
+            const targetUrl = data.mobile_url || window.location.href + 'mobile-upload/';
+            qrUrlInput.value = targetUrl;
 
-            try {
-                if (typeof QRCode === 'function') {
-                    new QRCode(qrCodeBox, {
-                        text: mobileUrl,
-                        width: 220,
-                        height: 220,
-                        colorDark: "#000000",
-                        colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 0
-                    });
-                } else {
-                    console.warn('[LUBVISION QR] QRCode client library not found, fetching fallback SVG from /api/qr/');
-                    const qrApiUrl = `/api/qr/?url=${encodeURIComponent(mobileUrl)}&t=${Date.now()}`;
-                    const response = await fetch(qrApiUrl);
-                    if (response.ok) {
-                        qrCodeBox.innerHTML = await response.text();
-                    } else {
-                        throw new Error(`Server returned status ${response.status}`);
-                    }
-                }
-            } catch (err) {
-                console.error('[LUBVISION QR] Error generating QR code:', err);
-                qrCodeBox.innerHTML = '<span class="qr-loading-text" style="color: #ef4444;">Error generating QR code. See browser console for details.</span>';
+            const qrResp = await fetch(`/api/qr/?url=${encodeURIComponent(targetUrl)}`);
+            if (qrResp.ok) {
+                const svgText = await qrResp.text();
+                qrCodeBox.innerHTML = svgText;
+            } else {
+                qrCodeBox.innerHTML = `<span class="qr-error-text">Failed to load QR code.</span>`;
             }
+        } catch (e) {
+            qrCodeBox.innerHTML = `<span class="qr-error-text">Unable to connect for QR generation.</span>`;
         }
     }
 
     function closeQrModal() {
-        if (qrModal) {
-            qrModal.classList.add('hidden');
-        }
+        if (qrModal) qrModal.classList.add('hidden');
     }
 
-    if (btnCopyUrl && qrUrlInput) {
-        btnCopyUrl.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(qrUrlInput.value);
-                const originalHTML = btnCopyUrl.innerHTML;
-                btnCopyUrl.innerHTML = '✓ Copied!';
-                btnCopyUrl.style.borderColor = 'var(--color-fresh)';
-                btnCopyUrl.style.color = 'var(--color-fresh)';
-
-                setTimeout(() => {
-                    btnCopyUrl.innerHTML = originalHTML;
-                    btnCopyUrl.style.borderColor = '';
-                    btnCopyUrl.style.color = '';
-                }, 2000);
-            } catch (err) {
-                qrUrlInput.select();
-                document.execCommand('copy');
-                alert('URL copied to clipboard!');
-            }
+    if (btnCopyUrl) {
+        btnCopyUrl.addEventListener('click', () => {
+            if (!qrUrlInput.value) return;
+            navigator.clipboard.writeText(qrUrlInput.value).then(() => {
+                const origText = btnCopyUrl.innerHTML;
+                btnCopyUrl.innerHTML = "Copied!";
+                setTimeout(() => { btnCopyUrl.innerHTML = origText; }, 2000);
+            });
         });
     }
-
 });

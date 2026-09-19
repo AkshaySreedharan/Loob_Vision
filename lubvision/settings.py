@@ -100,5 +100,6 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Model File Path Configuration
-MODEL_PATH = BASE_DIR / 'models' / 'efficientnet_b3_optimized.keras'
+MODEL_PATH = BASE_DIR / 'models' / 'efficientnet_b3_optimized.onnx'
 CLASS_NAMES_PATH = BASE_DIR / 'models' / 'class_names.json'
+

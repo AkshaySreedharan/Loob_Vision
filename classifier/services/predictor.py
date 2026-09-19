@@ -2,6 +2,7 @@ import json
 import threading
 from pathlib import Path
 import numpy as np
+import onnxruntime as ort
 from django.conf import settings
 
 # Human readable display mapping according to requirements
@@ -15,10 +16,17 @@ HUMAN_CLASS_MAPPING = {
 DEFAULT_CLASSES = ["c1", "c2", "c3"]
 
 
+def _softmax(x: np.ndarray) -> np.ndarray:
+    """Applies numerically stable softmax along the last axis if input is logits."""
+    e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return e_x / np.sum(e_x, axis=-1, keepdims=True)
+
+
 class LubricantPredictor:
     """
-    Singleton predictor service for EfficientNet-B3 model.
-    Loads the Keras model once at Django startup/predictor initialization.
+    Singleton ONNX Runtime predictor service for EfficientNet-B3 lubricant condition analysis.
+    Loads the ONNX model once during initialization and reuses the session for all inference calls.
+    Contains NO TensorFlow or Keras dependencies.
     """
     _instance = None
     _lock = threading.Lock()
@@ -39,79 +47,70 @@ class LubricantPredictor:
             if self._initialized:
                 return
 
-            self.model = None
+
+            self.session = None
+            self.input_name = None
+            self.output_name = None
             self.class_names = DEFAULT_CLASSES
             self.model_path = Path(settings.MODEL_PATH)
             self.class_names_path = Path(settings.CLASS_NAMES_PATH)
             self.load_model()
             self._initialized = True
 
-    def _build_model_architecture(self):
-        """Reconstructs exact EfficientNet-B3 model architecture as defined in train_optimized.py."""
-        import tensorflow as tf
-
-        data_augmentation = tf.keras.Sequential([
-            tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomRotation(0.10),
-            tf.keras.layers.RandomZoom(0.10),
-            tf.keras.layers.RandomContrast(0.10),
-        ], name="data_augmentation")
-
-        base_model = tf.keras.applications.EfficientNetB3(
-            include_top=False,
-            weights=None,
-            input_shape=(300, 300, 3)
-        )
-
-        inputs = tf.keras.Input(shape=(300, 300, 3))
-        x = data_augmentation(inputs)
-        x = base_model(x, training=False)
-        x = tf.keras.layers.GlobalAveragePooling2D()(x)
-        x = tf.keras.layers.Dropout(0.30)(x)
-        outputs = tf.keras.layers.Dense(len(self.class_names), activation="softmax")(x)
-
-        model = tf.keras.Model(inputs, outputs)
-        return model
-
     def load_model(self):
-        """Loads class names and Keras v3 model weights into memory."""
-        import tensorflow as tf
-
-        # 1. Load class names
+        """Loads class names and initializes the ONNX Runtime InferenceSession."""
+        # 1. Load class names JSON
         if self.class_names_path.exists():
             try:
-                with open(self.class_names_path, 'r') as f:
+                with open(self.class_names_path, 'r', encoding='utf-8') as f:
                     self.class_names = json.load(f)
             except Exception as e:
-                print(f"[LubricantPredictor] Warning: Failed to load class names JSON: {e}")
+                print(f"[ONNX LubricantPredictor] Warning: Failed to load class names JSON: {e}")
 
-        # 2. Load model / weights
+        # 2. Load ONNX model
         if not self.model_path.exists():
-            raise FileNotFoundError(f"Model file not found at: {self.model_path}")
+            raise FileNotFoundError(f"[ONNX LubricantPredictor] ONNX model file not found at: {self.model_path}")
 
-        print(f"[LubricantPredictor] Loading model from {self.model_path}...")
-        try:
-            self.model = tf.keras.models.load_model(str(self.model_path), compile=False)
-            print("[LubricantPredictor] Model loaded directly via load_model.")
-        except Exception as err:
-            print(f"[LubricantPredictor] Direct load_model notice ({err}). Reconstructing architecture & loading weights...")
-            self.model = self._build_model_architecture()
-            self.model.load_weights(str(self.model_path))
-            print("[LubricantPredictor] Trained model weights loaded successfully into architecture.")
+        print(f"[ONNX LubricantPredictor] Initializing ONNX Runtime Session from {self.model_path}...")
+        
+        # Configure ONNX Runtime session options for efficient serverless execution
+        opts = ort.SessionOptions()
+        opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.intra_op_num_threads = 2
 
+        self.session = ort.InferenceSession(str(self.model_path), sess_options=opts)
+        
+        # Dynamically obtain ONNX input and output tensor names
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_name = self.session.get_outputs()[0].name
 
-    def predict(self, img_batch: np.ndarray):
+        print(f"[ONNX LubricantPredictor] Model loaded successfully.")
+        print(f"  Input Tensor Name:  '{self.input_name}'")
+        print(f"  Output Tensor Name: '{self.output_name}'")
+
+    def predict(self, img_batch: np.ndarray) -> dict:
         """
-        Executes model inference on preprocessed image batch (1, 300, 300, 3).
-        Returns prediction dictionary.
+        Executes model inference on preprocessed image batch (1, 300, 300, 3) float32.
+        Returns prediction dictionary with class_code, condition, confidence, and degradation_score.
         """
-        if self.model is None:
-            raise RuntimeError("Model is not loaded.")
+        if self.session is None:
+            raise RuntimeError("[ONNX LubricantPredictor] ONNX session is not initialized.")
 
-        predictions = self.model.predict(img_batch, verbose=0)
-        probabilities = predictions[0]
+        # Ensure correct input shape and float32 dtype
+        if img_batch.dtype != np.float32:
+            img_batch = img_batch.astype(np.float32)
 
-        # Existing prediction probabilities (Index 0: c1 Fresh, Index 1: c2 Semi, Index 2: c3 Fully)
+        # Execute ONNX Runtime inference
+        raw_outputs = self.session.run([self.output_name], {self.input_name: img_batch})[0]
+        probabilities = raw_outputs[0]
+
+        # Check if output is already probabilities (sum ≈ 1.0) or raw logits
+        prob_sum = float(np.sum(probabilities))
+        if not (0.98 <= prob_sum <= 1.02) or np.any(probabilities < 0.0):
+            probabilities = _softmax(probabilities)
+
+        # Probabilities per class (Index 0: c1 Fresh, Index 1: c2 Semi Degraded, Index 2: c3 Fully Degraded)
         p_c1 = float(probabilities[0]) if len(probabilities) > 0 else 0.0
         p_c2 = float(probabilities[1]) if len(probabilities) > 1 else 0.0
         p_c3 = float(probabilities[2]) if len(probabilities) > 2 else 0.0
@@ -127,8 +126,8 @@ class LubricantPredictor:
         confidence = float(probabilities[top_index]) * 100.0
 
         # Debug logging
-        print(f"[DEBUG Predictor] Probabilities -> c1(Fresh): {p_c1:.4f}, c2(Semi): {p_c2:.4f}, c3(Fully): {p_c3:.4f}")
-        print(f"[DEBUG Predictor] Calculated Degradation Score: {degradation_score}")
+        print(f"[ONNX Predictor] Probabilities -> c1(Fresh): {p_c1:.4f}, c2(Semi): {p_c2:.4f}, c3(Fully): {p_c3:.4f}")
+        print(f"[ONNX Predictor] Predicted Class: {class_code} ({condition}), Confidence: {confidence:.1f}%, Degradation Score: {degradation_score}")
 
         return {
             "class_code": class_code,
@@ -138,6 +137,6 @@ class LubricantPredictor:
         }
 
 
-def get_predictor():
+def get_predictor() -> LubricantPredictor:
     """Helper function to obtain the singleton predictor instance."""
     return LubricantPredictor()
