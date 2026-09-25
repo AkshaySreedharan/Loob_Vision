@@ -74,16 +74,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // 3. Request camera with rear environment preference
-            const constraints = {
-                video: {
-                    facingMode: { ideal: "environment" },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                },
-                audio: false
-            };
+            let tempStream = null;
+            try {
+                tempStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+            } catch (exactErr) {
+                tempStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+            }
 
-            cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+            // 4. Enumerate devices to identify explicit back/rear camera hardware
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+            if (videoDevices.length <= 1) {
+                cameraStream = tempStream;
+            } else {
+                let backCamera = videoDevices.find(d => {
+                    const label = (d.label || '').toLowerCase();
+                    return label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('outward') || label.includes('facing back');
+                });
+
+                if (!backCamera) {
+                    // On iOS/Android, index 0 is front/selfie camera, last index is back camera
+                    backCamera = videoDevices[videoDevices.length - 1];
+                }
+
+                if (backCamera && backCamera.deviceId) {
+                    tempStream.getTracks().forEach(track => track.stop());
+                    cameraStream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: backCamera.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                        audio: false
+                    });
+                } else {
+                    cameraStream = tempStream;
+                }
+            }
 
             if (mobileVideo) {
                 mobileVideo.srcObject = cameraStream;

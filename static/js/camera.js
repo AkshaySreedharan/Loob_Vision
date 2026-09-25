@@ -28,37 +28,55 @@ class CameraController {
         }
 
         try {
-            // 1. Initial permission request & video stream acquisition
-            let initialConstraints = {
-                video: {
-                    facingMode: { ideal: "environment" },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                },
-                audio: false
-            };
-
-            let tempStream = await navigator.mediaDevices.getUserMedia(initialConstraints);
+            // 1. Initial permission request & video stream acquisition targeting rear camera
+            let tempStream = null;
+            try {
+                tempStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+            } catch (exactErr) {
+                tempStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+            }
 
             // 2. Enumerate available video input devices
             const devices = await navigator.mediaDevices.enumerateDevices();
             const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-            // Release temporary stream before starting targeted device stream if needed
-            tempStream.getTracks().forEach(track => track.stop());
-
             if (videoDevices.length === 0) {
+                if (tempStream) tempStream.getTracks().forEach(track => track.stop());
                 this._handleError("No camera devices detected on your device.");
                 return false;
             }
 
-            // 3. Automatically select the first detected video device
-            const firstDevice = videoDevices[0];
-            this.selectedDeviceId = firstDevice.deviceId;
+            if (videoDevices.length === 1) {
+                this.stream = tempStream;
+                this.videoElement.srcObject = this.stream;
+                await this.videoElement.play();
+                return true;
+            }
 
-            console.log(`[CameraController] Found ${videoDevices.length} camera(s). Auto-selecting first camera: "${firstDevice.label || firstDevice.deviceId}"`);
+            // 3. Automatically select the back / environment camera device
+            let backDevice = videoDevices.find(device => {
+                const label = (device.label || '').toLowerCase();
+                return label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('outward') || label.includes('facing back');
+            });
 
-            // 4. Start targeted video stream with selected deviceId
+            if (!backDevice) {
+                // On mobile devices, index 0 is front camera, last index is back camera
+                backDevice = videoDevices[videoDevices.length - 1];
+            }
+
+            this.selectedDeviceId = backDevice.deviceId;
+            console.log(`[CameraController] Found ${videoDevices.length} camera(s). Auto-selecting back camera: "${backDevice.label || backDevice.deviceId}"`);
+
+            // Release temporary stream before starting targeted back camera stream
+            tempStream.getTracks().forEach(track => track.stop());
+
+            // 4. Start targeted video stream with selected back camera deviceId
             const finalConstraints = {
                 video: {
                     deviceId: { exact: this.selectedDeviceId },
