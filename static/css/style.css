@@ -429,20 +429,78 @@ body {
     border-style: solid;
 }
 
-.corner.tl { top: 20px; left: 20px; border-width: 3px 0 0 3px; }
-.corner.tr { top: 20px; right: 20px; border-width: 3px 3px 0 0; }
-.corner.bl { bottom: 20px; left: 20px; border-width: 0 0 3px 3px; }
-.corner.br { bottom: 20px; right: 20px; border-width: 0 3px 3px 0; }
+.corner.tl { top: 16px; left: 16px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+.corner.tr { top: 16px; right: 16px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+.corner.bl { bottom: 16px; left: 16px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+.corner.br { bottom: 16px; right: 16px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
 
+/* Square ROI Reticle Target Box */
 .hud-reticle {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 45%;
-    height: 45%;
-    border: 1.5px dashed rgba(6, 182, 212, 0.45);
-    border-radius: 50%;
+    width: 65%;
+    height: 65%;
+    border: 2px dashed var(--accent-cyan);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 0 9999px rgba(9, 13, 22, 0.45), inset 0 0 20px rgba(6, 182, 212, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: all var(--transition-normal);
+}
+
+.hud-reticle-crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.hud-reticle-crosshair::before {
+    content: '';
+    position: absolute;
+    top: 9px;
+    left: 0;
+    width: 20px;
+    height: 2px;
+    background: var(--accent-cyan);
+    opacity: 0.75;
+}
+
+.hud-reticle-crosshair::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 9px;
+    width: 2px;
+    height: 20px;
+    background: var(--accent-cyan);
+    opacity: 0.75;
+}
+
+.roi-badge {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 10px;
+    background: rgba(6, 182, 212, 0.25);
+    border: 1px solid var(--accent-cyan);
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--accent-cyan);
+    text-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+    pointer-events: none;
+    white-space: nowrap;
 }
 
 /* Error Overlay */

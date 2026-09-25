@@ -244,18 +244,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const width = mobileVideo.videoWidth || 640;
-            const height = mobileVideo.videoHeight || 480;
+            const video = mobileVideo;
+            const vw = video.videoWidth || 640;
+            const vh = video.videoHeight || 480;
 
-            mobileCanvas.width = width;
-            mobileCanvas.height = height;
+            const renderW = video.clientWidth || vw;
+            const renderH = video.clientHeight || vh;
+
+            // Compute scaling factor under CSS object-fit: cover
+            const scale = Math.max(renderW / vw, renderH / vh);
+
+            // Square ROI size (65% of viewport width) in intrinsic video pixels
+            const roiSize = (renderW * 0.65) / scale;
+
+            // Center of video stream
+            const cx = vw / 2;
+            const cy = vh / 2;
+
+            // Top-left coordinates of ROI crop box
+            const cropX = Math.max(0, cx - (roiSize / 2));
+            const cropY = Math.max(0, cy - (roiSize / 2));
+            const cropW = Math.min(vw - cropX, roiSize);
+            const cropH = Math.min(vh - cropY, roiSize);
+
+            const outputSize = Math.round(Math.min(cropW, cropH));
+
+            mobileCanvas.width = outputSize;
+            mobileCanvas.height = outputSize;
 
             const ctx = mobileCanvas.getContext('2d');
-            ctx.drawImage(mobileVideo, 0, 0, width, height);
+            ctx.drawImage(
+                video,
+                cropX, cropY, cropW, cropH,
+                0, 0, outputSize, outputSize
+            );
 
             mobileCanvas.toBlob((blob) => {
                 resolve(blob);
-            }, 'image/jpeg', 0.92);
+            }, 'image/jpeg', 0.95);
         });
     }
 

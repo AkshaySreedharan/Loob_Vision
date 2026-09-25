@@ -132,18 +132,44 @@ class CameraController {
                 return;
             }
 
-            const width = this.videoElement.videoWidth || 640;
-            const height = this.videoElement.videoHeight || 480;
+            const video = this.videoElement;
+            const vw = video.videoWidth || 640;
+            const vh = video.videoHeight || 480;
 
-            canvasElement.width = width;
-            canvasElement.height = height;
+            const renderW = video.clientWidth || vw;
+            const renderH = video.clientHeight || vh;
+
+            // Compute scaling factor under CSS object-fit: cover
+            const scale = Math.max(renderW / vw, renderH / vh);
+
+            // Square ROI size (65% of viewport width) in intrinsic video pixels
+            const roiSize = (renderW * 0.65) / scale;
+
+            // Center of video stream
+            const cx = vw / 2;
+            const cy = vh / 2;
+
+            // Top-left coordinates of ROI crop box
+            const cropX = Math.max(0, cx - (roiSize / 2));
+            const cropY = Math.max(0, cy - (roiSize / 2));
+            const cropW = Math.min(vw - cropX, roiSize);
+            const cropH = Math.min(vh - cropY, roiSize);
+
+            const outputSize = Math.round(Math.min(cropW, cropH));
+
+            canvasElement.width = outputSize;
+            canvasElement.height = outputSize;
 
             const ctx = canvasElement.getContext('2d');
-            ctx.drawImage(this.videoElement, 0, 0, width, height);
+            ctx.drawImage(
+                video,
+                cropX, cropY, cropW, cropH,
+                0, 0, outputSize, outputSize
+            );
 
             canvasElement.toBlob((blob) => {
                 resolve(blob);
-            }, 'image/jpeg', 0.92);
+            }, 'image/jpeg', 0.95);
         });
     }
 
