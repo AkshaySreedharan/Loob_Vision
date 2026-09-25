@@ -148,9 +148,48 @@ class CameraController {
     }
 
     /**
+     * Checks if torch/flashlight feature is available on active video track.
+     * @returns {boolean}
+     */
+    hasTorchCapability() {
+        if (!this.stream) return false;
+        const track = this.stream.getVideoTracks()[0];
+        if (!track) return false;
+
+        if (typeof track.getCapabilities === 'function') {
+            const capabilities = track.getCapabilities();
+            return Boolean(capabilities && capabilities.torch);
+        }
+        return false;
+    }
+
+    /**
+     * Toggles the hardware flashlight/torch state ON or OFF.
+     * @param {boolean} enabled 
+     * @returns {Promise<boolean>}
+     */
+    async setTorch(enabled) {
+        if (!this.stream) return false;
+        const track = this.stream.getVideoTracks()[0];
+        if (!track) return false;
+
+        try {
+            await track.applyConstraints({
+                advanced: [{ torch: Boolean(enabled) }]
+            });
+            this.isTorchActive = Boolean(enabled);
+            return true;
+        } catch (err) {
+            console.warn("[CameraController] Failed to toggle flashlight:", err);
+            return false;
+        }
+    }
+
+    /**
      * Stops active video stream tracks.
      */
     stop() {
+        this.isTorchActive = false;
         if (this.stream) {
             this.stream.getTracks().forEach(track => {
                 try {

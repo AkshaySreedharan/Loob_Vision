@@ -27,15 +27,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const degradationLevelText = document.getElementById('mobile-degradation-level-text');
     const btnReset = document.getElementById('btn-mobile-reset');
 
+    const btnTorch = document.getElementById('btn-mobile-torch');
+    const torchStatusText = document.getElementById('mobile-torch-status');
+
     // Camera Stream & Capture State
     let cameraStream = null;
     let capturedBlob = null;
     let currentPreviewUrl = null;
+    let isTorchOn = false;
 
     /**
      * Dedicated Function to Stop Camera Stream Completely & Reset Video Element
      */
     function stopCamera() {
+        setTorchState(false);
         if (cameraStream) {
             cameraStream.getTracks().forEach(track => {
                 try {
@@ -53,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) {}
             mobileVideo.srcObject = null;
         }
+        if (btnTorch) btnTorch.classList.add('hidden');
     }
 
     /**
@@ -119,12 +125,94 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobileVideo.srcObject = cameraStream;
                 await mobileVideo.play();
             }
+
+            // Initialize Flashlight / Torch Control
+            initTorchControl();
             return true;
 
         } catch (error) {
             handleCameraError(error);
             return false;
         }
+    }
+
+    /**
+     * Initializes Flashlight / Torch button visibility based on camera hardware capabilities
+     */
+    function initTorchControl() {
+        if (!btnTorch) return;
+        isTorchOn = false;
+        updateTorchUI(false);
+
+        if (!cameraStream) {
+            btnTorch.classList.add('hidden');
+            return;
+        }
+
+        const track = cameraStream.getVideoTracks()[0];
+        if (!track) {
+            btnTorch.classList.add('hidden');
+            return;
+        }
+
+        // Check if track supports capabilities and torch
+        const capabilities = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : {};
+        if (capabilities && capabilities.torch) {
+            btnTorch.classList.remove('hidden');
+        } else if (capabilities && 'torch' in capabilities) {
+            btnTorch.classList.remove('hidden');
+        } else {
+            // Show torch button for rear cameras on mobile as fallback attempt
+            btnTorch.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * Toggles hardware torch ON or OFF
+     */
+    async function toggleTorch() {
+        if (!cameraStream) return;
+        const targetState = !isTorchOn;
+        const success = await setTorchState(targetState);
+        if (success) {
+            isTorchOn = targetState;
+            updateTorchUI(isTorchOn);
+        } else {
+            console.warn('[LUBVISION Mobile] Flashlight toggle rejected by hardware.');
+        }
+    }
+
+    async function setTorchState(enable) {
+        if (!cameraStream) return false;
+        const track = cameraStream.getVideoTracks()[0];
+        if (!track) return false;
+
+        try {
+            await track.applyConstraints({
+                advanced: [{ torch: Boolean(enable) }]
+            });
+            return true;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function updateTorchUI(active) {
+        if (!btnTorch) return;
+        if (active) {
+            btnTorch.classList.add('active');
+            if (torchStatusText) torchStatusText.textContent = "FLASH ON";
+        } else {
+            btnTorch.classList.remove('active');
+            if (torchStatusText) torchStatusText.textContent = "FLASH OFF";
+        }
+    }
+
+    if (btnTorch) {
+        btnTorch.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleTorch();
+        });
     }
 
     /**

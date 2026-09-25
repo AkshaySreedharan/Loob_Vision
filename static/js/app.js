@@ -48,7 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1200);
 
-    // 2. Camera Initialization (Automatic first camera selection)
+    const btnTorch = document.getElementById('btn-torch');
+    const torchStatusText = document.getElementById('torch-status');
+
+    // 2. Camera Initialization (Automatic rear camera selection)
     async function initCamera() {
         if (!cameraVideo) return;
 
@@ -62,6 +65,44 @@ document.addEventListener('DOMContentLoaded', () => {
         currentCameraActive = success;
         if (success) {
             cameraVideo.classList.remove('hidden');
+            checkTorchSupport();
+        } else {
+            if (btnTorch) btnTorch.classList.add('hidden');
+        }
+    }
+
+    function checkTorchSupport() {
+        if (!btnTorch) return;
+        if (window.cameraController.hasTorchCapability()) {
+            btnTorch.classList.remove('hidden');
+            updateTorchUI(false);
+        } else {
+            // Display torch button for rear mobile cameras
+            btnTorch.classList.remove('hidden');
+            updateTorchUI(false);
+        }
+    }
+
+    if (btnTorch) {
+        btnTorch.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const currentState = Boolean(window.cameraController.isTorchActive);
+            const targetState = !currentState;
+            const success = await window.cameraController.setTorch(targetState);
+            if (success) {
+                updateTorchUI(targetState);
+            }
+        });
+    }
+
+    function updateTorchUI(active) {
+        if (!btnTorch) return;
+        if (active) {
+            btnTorch.classList.add('active');
+            if (torchStatusText) torchStatusText.textContent = "FLASH ON";
+        } else {
+            btnTorch.classList.remove('active');
+            if (torchStatusText) torchStatusText.textContent = "FLASH OFF";
         }
     }
 

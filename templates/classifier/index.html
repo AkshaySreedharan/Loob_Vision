@@ -90,6 +90,14 @@
                         <!-- Off-Screen Canvas for Frame Capture -->
                         <canvas id="capture-canvas" class="hidden"></canvas>
 
+                        <!-- Flashlight / Torch Toggle Overlay Button -->
+                        <button id="btn-torch" class="torch-toggle-btn hidden" title="Toggle Flashlight" type="button">
+                            <svg class="torch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                            </svg>
+                            <span id="torch-status">FLASH OFF</span>
+                        </button>
+
                         <!-- Camera Overlay HUD -->
                         <div id="camera-hud" class="camera-hud">
                             <div class="hud-corners">
